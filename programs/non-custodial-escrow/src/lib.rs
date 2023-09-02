@@ -30,6 +30,40 @@ pub mod non_custodial_escrow {
 
         Ok(())
     }
+
+    pub fn accept(ctx: Context<Accept>) -> Result<()> {
+        // transfer escrowed_x_tokens to buyer
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.escrowed_x_tokens.to_account_info(),
+                    to: ctx.accounts.buyer_x_tokens.to_account_info(),
+                    authority: ctx.accounts.escrow.to_account_info(),
+                },
+                &[&[
+                    "escrow".as_bytes(),
+                    ctx.accounts.escrow.authority.as_ref(),
+                    &[ctx.accounts.escrow.bump],
+                ]],
+            ),
+            ctx.accounts.escrowed_x_tokens.amount,
+        )?;
+
+        // transfer buyer's y_tokens to seller
+        anchor_spl::token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: ctx.accounts.buyer_y_tokens.to_account_info(),
+                    to: ctx.accounts.sellers_y_tokens.to_account_info(),
+                    authority: ctx.accounts.buyer.to_account_info(),
+                },
+            ),
+            ctx.accounts.escrow.y_amount,
+        )?;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -71,4 +105,40 @@ pub struct Escrow {
 
 impl Escrow {
     const LEN: usize = 8 + 1 + 32 + 32 + 32 + 8;
+}
+
+#[derive(Accounts)]
+pub struct Accept<'info> {
+    pub buyer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = ["escrow".as_bytes(), escrow.authority.as_ref()],
+        bump = escrow.bump,
+    )]
+    pub escrow: Account<'info, Escrow>,
+
+    #[account(mut, constraint = escrowed_x_tokens.key() == escrow.escrowed_x_tokens)]
+    pub escrowed_x_tokens: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        constraint = sellers_y_tokens.mint == escrow.y_mint,
+    )]
+    pub sellers_y_tokens: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        constraint = buyer_x_tokens.mint == escrowed_x_tokens.mint,
+    )]
+    pub buyer_x_tokens: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        constraint = buyer_y_tokens.mint == escrow.y_mint,
+        constraint = buyer_y_tokens.owner == buyer.key(),
+    )]
+    pub buyer_y_tokens: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
 }
