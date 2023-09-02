@@ -84,7 +84,7 @@ pub mod non_custodial_escrow {
             ctx.accounts.escrowed_x_tokens.amount,
         )?;
 
-        anhor_spl::token::close_account(CpiContext::new_with_signer(
+        anchor_spl::token::close_account(CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::CloseAccount {
                 account: ctx.accounts.escrowed_x_tokens.to_account_info(),
